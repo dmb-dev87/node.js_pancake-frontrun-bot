@@ -1,7 +1,7 @@
 /**
  * Perform a front-running attack on pancakeswap or uniswap
 */
-//const fs = require('fs');
+
 var Web3 = require('web3');
 var abiDecoder = require('abi-decoder');
 var colors = require("colors");
@@ -9,8 +9,21 @@ var Tx = require('ethereumjs-tx').Transaction;
 var axios = require('axios');
 var BigNumber = require('big-number');
 
-const {NETWORK, PANCAKE_ROUTER_ADDRESS, PANCAKE_FACTORY_ADDRESS, PANCAKE_ROUTER_ABI, PANCAKE_FACTORY_ABI, PANCAKE_POOL_ABI, HTTP_PROVIDER_LINK, WEBSOCKET_PROVIDER_LINK, HTTP_PROVIDER_LINK_TEST, GAS_STATION} = require('./constants.js');
+const {
+    NETWORK,
+    PANCAKE_ROUTER_ADDRESS,
+    PANCAKE_FACTORY_ADDRESS,
+    PANCAKE_ROUTER_ABI,
+    PANCAKE_FACTORY_ABI,
+    PANCAKE_POOL_ABI,
+    HTTP_PROVIDER_LINK,
+    WEBSOCKET_PROVIDER_LINK,
+    HTTP_PROVIDER_LINK_TEST,
+    GAS_STATION
+} = require('./constants.js');
+
 const {setBotAddress, getBotAddress, FRONT_BOT_ADDRESS, botABI, salt} = require('./bot.js');
+
 const {PRIVATE_KEY, TOKEN_ADDRESS, AMOUNT, LEVEL} = require('./env.js');
 
 const INPUT_TOKEN_ADDRESS = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
@@ -20,7 +33,7 @@ var input_token_info;
 var out_token_info;
 var pool_info;
 var gas_price_info;
-var token_hash
+var token_hash;
 
 var web3;
 var web3Ts;
@@ -40,11 +53,16 @@ var attack_started = false;
 var succeed = false;
 var subscription;
 
+var testenv = false;
+
 async function createWeb3(){
     try {
-        web3 = new Web3(new Web3.providers.HttpProvider(HTTP_PROVIDER_LINK));
-        // web3 = new Web3(new Web3.providers.HttpProvider(HTTP_PROVIDER_LINK_TEST));
-        //web3 = new Web3(EthereumTesterProvider());
+        if (testenv == true) {
+            web3 = new Web3(new Web3.providers.HttpProvider(HTTP_PROVIDER_LINK_TEST));
+        } else {
+            web3 = new Web3(new Web3.providers.HttpProvider(HTTP_PROVIDER_LINK));
+        }
+
         web3.eth.getAccounts(console.log);
         web3Ws = new Web3(new Web3.providers.WebsocketProvider(WEBSOCKET_PROVIDER_LINK));
         pancakeRouter = new web3.eth.Contract(PANCAKE_ROUTER_ABI, PANCAKE_ROUTER_ADDRESS);
@@ -52,6 +70,7 @@ async function createWeb3(){
         abiDecoder.addABI(PANCAKE_ROUTER_ABI);
 
         return true;
+
     } catch (error) {
       console.log(error);
       return false;
@@ -59,8 +78,7 @@ async function createWeb3(){
 }
 
 async function main() {
-
-try {
+    try {
         if (await createWeb3() == false) {
             console.log('Web3 Create Error'.yellow);
             process.exit();
@@ -89,41 +107,37 @@ try {
         await approve(gas_price_info.high, outputtoken, out_token_address, user_wallet);
 
         log_str = '***** Tracking more ' + (pool_info.attack_volumn/(10**input_token_info.decimals)).toFixed(5) + ' ' +  input_token_info.symbol + '  Exchange on Pancake *****'
-        // console.log(log_str.green);
-        // console.log(web3Ws);
+        console.log(log_str.green);
+
         web3Ws.onopen = function(evt) {
             web3Ws.send(JSON.stringify({ method: "subscribe", topic: "transfers", address: user_wallet.address }));
             console.log('connected')
         }
+
         // get pending transactions
         subscription = web3Ws.eth.subscribe('pendingTransactions', function (error, result) {
         }).on("data", async function (transactionHash) {
             console.log(transactionHash);
-
-            // let transaction = await web3.eth.getTransaction(transactionHash);
-            // if (transaction != null && transaction['to'] == PANCAKE_ROUTER_ADDRESS)
-            // {
-            //     await handleTransaction(transaction, out_token_address, user_wallet, amount, level);
-            // }
-
+            let transaction = await web3.eth.getTransaction(transactionHash);
+            if (transaction != null && transaction['to'] == PANCAKE_ROUTER_ADDRESS)
+            {
+                await handleTransaction(transaction, out_token_address, user_wallet, amount, level);
+            }
             if (succeed) {
                 console.log("The bot finished the attack.");
                 process.exit();
             }
         })
-
     } catch (error) {
-
-      if(error.data != null && error.data.see === 'https://infura.io/dashboard')
-      {
-         console.log('Daily request count exceeded, Request rate limited'.yellow);
-         console.log('Please insert other API Key');
-      }else{
-         console.log('Unknown Handled Error');
-         console.log(error);
-      }
-
-      process.exit();
+        if(error.data != null && error.data.see === 'https://infura.io/dashboard')
+        {
+            console.log('Daily request count exceeded, Request rate limited'.yellow);
+            console.log('Please insert other API Key');
+        }else{
+            console.log('Unknown Handled Error');
+            console.log(error);
+        }
+        process.exit();
     }
 }
 
@@ -216,8 +230,6 @@ async function triggersFrontRun(transaction, out_token_address, amount, level) {
         return true
     }
 
-    return false;
-
     if (transaction['to'] != PANCAKE_ROUTER_ADDRESS) {
         return false;
     }
@@ -241,12 +253,11 @@ async function triggersFrontRun(transaction, out_token_address, amount, level) {
 
         if(out_token_addr != out_token_address)
         {
-            // console.log(out_token_addr.blue)
-            // console.log(out_token_address)
             return false;
         }
 
         await updatePoolInfo();
+
         let log_str = "Attack ETH Volumn : Pool Eth Volumn" + '\t\t' +(pool_info.attack_volumn/(10**input_token_info.decimals)).toFixed(3) + ' ' + input_token_info.symbol + '\t' + (pool_info.input_volumn/(10**input_token_info.decimals)).toFixed(3) + ' ' + input_token_info.symbol;
         console.log(log_str.red);
 
@@ -263,7 +274,6 @@ async function triggersFrontRun(transaction, out_token_address, amount, level) {
         }
     }
     else if (method == 'swapETHForExactTokens'){
-
         let in_max = transaction.value;
         let out_amount = params[0].value;
 
@@ -276,12 +286,11 @@ async function triggersFrontRun(transaction, out_token_address, amount, level) {
 
         if(out_token_addr != out_token_address)
         {
-            // console.log(out_token_addr.blue)
-            // console.log(out_token_address)
             return false;
         }
 
         await updatePoolInfo();
+
         let log_str = "Attack ETH Volumn : Pool Eth Volumn" + '\t\t' +(pool_info.attack_volumn/(10**input_token_info.decimals)).toFixed(3) + ' ' + input_token_info.symbol + '\t' + (pool_info.input_volumn/(10**input_token_info.decimals)).toFixed(3) + ' ' + input_token_info.symbol;
         console.log(log_str.yellow);
 
@@ -311,18 +320,16 @@ async function triggersFrontRun(transaction, out_token_address, amount, level) {
 
         if(out_token_addr != out_token_address)
         {
-            // console.log(out_token_addr.blue)
-            // console.log(out_token_address)
             return false;
         }
 
         if(in_token_addr != INPUT_TOKEN_ADDRESS)
         {
-            // console.log(in_token_addr.blue)
-            // console.log(INPUT_TOKEN_ADDRESS)
             return false;
         }
+
         await updatePoolInfo();
+
         let log_str = "Attack ETH Volumn : Pool Eth Volumn" + '\t\t' +(pool_info.attack_volumn/(10**input_token_info.decimals)).toFixed(3) + ' ' + input_token_info.symbol + '\t' + (pool_info.input_volumn/(10**input_token_info.decimals)).toFixed(3) + ' ' + input_token_info.symbol;
         console.log(log_str.green);
 
@@ -357,19 +364,16 @@ async function triggersFrontRun(transaction, out_token_address, amount, level) {
 
         if(out_token_addr != out_token_address)
         {
-            // console.log(out_token_addr.blue)
-            // console.log(out_token_address)
             return false;
         }
 
         if(in_token_addr != INPUT_TOKEN_ADDRESS)
         {
-            // console.log(in_token_addr.blue)
-            // console.log(INPUT_TOKEN_ADDRESS)
             return false;
         }
 
         await updatePoolInfo();
+
         let log_str = "Attack ETH Volumn : Pool Eth Volumn" + '\t\t' +(pool_info.attack_volumn/(10**input_token_info.decimals)).toFixed(3) + ' ' + input_token_info.symbol + '\t' + (pool_info.input_volumn/(10**input_token_info.decimals)).toFixed(3) + ' ' + input_token_info.symbol;
         console.log(log_str);
 
@@ -508,7 +512,6 @@ async function isPending(transactionHash) {
 
 async function updatePoolInfo() {
     try{
-
         var reserves = await pool_info.contract.methods.getReserves().call();
 
         if(pool_info.forward) {
@@ -524,9 +527,7 @@ async function updatePoolInfo() {
         pool_info.attack_volumn = eth_balance * (pool_info.attack_level/100);
 
     }catch (error) {
-
         console.log('Failed To Get Pair Info'.yellow);
-
         return false;
     }
 }
