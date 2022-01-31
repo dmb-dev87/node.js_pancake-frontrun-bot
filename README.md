@@ -1,16 +1,15 @@
-# front-run-pancakeswap-bot
-The front run bot for Pancakeswap (BSC)
+# Basic Sample Hardhat Project
 
-Pancakeswap frontrun bot that purchases the specified token when liquidity is added.
-Bot is following the “target” address and trades tokens on PancakeSwap.
-Bot can front run by setting higher gas fee and using direct node for transaction
+This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts.
 
-## Prerequisities
-- Node and NPM https://nodejs.org/en/download/
-- Wallet with BNB for gas and token swap
+Try running some of the following tasks:
 
-## Running BOT
-- Update env.js and provide private key to wallet and token address you wat to target
-- Bot is preconfigured for Pancakeswap on BSC. Review configuration in constants.js. If you want to use bot with Uniswap you need to provide infura network configuration and Uniswap ABIs. Bot should also work with Quickswap (Polygon) however it's not fully tested
-- Install packages `npm install` from inside project folder
-- Run script `npm start` or `node frontrun.js`
+```shell
+npx hardhat accounts
+npx hardhat compile
+npx hardhat clean
+npx hardhat test
+npx hardhat node
+node scripts/sample-script.js
+npx hardhat help
+```
